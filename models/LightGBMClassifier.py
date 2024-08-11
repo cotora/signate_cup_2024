@@ -1,5 +1,6 @@
 import lightgbm as lgb
 
+
 class LightGBMClassifier:
 
     def __init__(self, params):
@@ -23,4 +24,3 @@ class LightGBMClassifier:
 
     def load(self, path):
         self.bst = lgb.Booster(model_file=path)
-
