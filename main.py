@@ -24,6 +24,7 @@ def main(train_path, test_path, output_path):
 
     # 前処理結果の確認
     print(train.head())
+    print(train.columns)
 
     # 特徴量と目的変数の分離
     y = train["ProdTaken"]
@@ -35,7 +36,12 @@ def main(train_path, test_path, output_path):
     )
 
     # モデルの学習
-    params = {"objective": "binary", "metric": "binary_logloss"}
+    params = {
+        "objective": "binary",
+        "metric": "auc",
+        "random_state": 42,
+        "boosting_type": "gbdt",
+    }
 
     model = LightGBMClassifier(params)
     model.fit(X_train, y_train, X_valid, y_valid)
