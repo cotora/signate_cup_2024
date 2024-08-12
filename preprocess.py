@@ -5,10 +5,12 @@ import unicodedata
 
 
 def extract_age(s):
-    result = 30
+    result = 0
 
     if pd.isna(s):
         return s
+    
+    s=unicodedata.normalize("NFKD", s)
 
     kanji = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
 
@@ -27,7 +29,7 @@ def extract_age(s):
     if "代" in list(s):
         result += 5
 
-    return result
+    return int(result)
 
 
 def extract_duration(s):
@@ -95,6 +97,9 @@ def extract_product_pitched(s):
 def extract_designation(s):
     if pd.isna(s):
         return s
+    
+    result = s
+    result = unicodedata.normalize("NFKC", result).replace(" ", "").lower()
 
     mapping = {
         "μ": "m",
@@ -106,11 +111,10 @@ def extract_designation(s):
         "ѵ": "v",
         "ѕ": "s",
     }
-    result = s
+
     for k, v in mapping.items():
         result = result.replace(k, v)
 
-    result = unicodedata.normalize("NFKD", result).replace(" ", "").lower()
     return result
 
 
@@ -191,6 +195,32 @@ def extract_child_info(s):
                 return None
 
         return 0
+    
+def extract_number_of_trips(s):
+    if pd.isna(s):
+        return s
+
+    pattern = r"\d+"
+
+    search_result = re.search(pattern, s)
+
+    result = 0
+
+    if search_result:
+        result = int(search_result.group())
+
+    if "半年" in s:
+        result *= 2
+    elif "四半期" in s:
+        result *= 4
+
+    return result
+
+def extract_type_of_contacts(s):
+    if pd.isna(s):
+        return s
+
+    return s.replace(" ", "_")
 
 
 def preprocess(df):
@@ -203,6 +233,9 @@ def preprocess(df):
     df["MarriageStatus"] = df["customer_info"].apply(extract_marriage_info)
     df["CarOwnership"] = df["customer_info"].apply(extract_car_info)
     df["ChildNum"] = df["customer_info"].apply(extract_child_info)
+    df["NumberOfTrips"] = df["NumberOfTrips"].apply(extract_number_of_trips)
+    df["TypeofContact"] = df["TypeofContact"].apply(extract_type_of_contacts)
+    df["Occupation"] = df["Occupation"].apply(extract_type_of_contacts)
     df = df.drop("customer_info", axis=1)
     df = df.fillna(df.mean(numeric_only=True))
     df = df.fillna(df.mode().iloc[0])
@@ -212,4 +245,12 @@ def preprocess(df):
 
 
 if __name__ == "__main__":
-    pass
+    train_data=pd.read_csv("data/input/train.csv")
+    test_data=pd.read_csv("data/input/test.csv")
+    all_data = pd.concat([train_data, test_data])
+    print(all_data["NumberOfTrips"].unique())
+    all_data = preprocess(all_data)
+
+    for col in all_data.columns:
+        print(all_data[col].value_counts())
+        print()
