@@ -2,6 +2,9 @@ import re
 import kanjize
 import pandas as pd
 import unicodedata
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import KFold
+import numpy as np
 
 
 def extract_age(s):
@@ -192,7 +195,7 @@ def extract_child_info(s):
         strange_words = ["わからない", "不明", "不詳"]
         for word in strange_words:
             if word in child_info:
-                return None
+                return np.nan
 
         return 0
     
@@ -222,8 +225,43 @@ def extract_type_of_contacts(s):
 
     return s.replace(" ", "_")
 
+def extract_number_of_followups(num):
+    if pd.isna(num):
+        return num
+
+    result = num
+
+    if result>=100:
+        result/=100
+
+    return result
+
+
+def target_encoder(train, test, target_col, cat_cols):
+    for col in cat_cols:
+        # テストデータをエンコード
+        target_mean = train.groupby(col)[target_col].mean()
+        test.loc[:,col] = test[col].map(target_mean)
+        test[col] = test[col].astype(float)
+
+        tmp = np.repeat(np.nan, train.shape[0])
+    
+        # 学習データを分割
+        kf = KFold(n_splits=5, shuffle=True, random_state=42)
+        for tr_idx, va_idx in kf.split(train):
+            tr_x, va_x = train.iloc[tr_idx], train.iloc[va_idx]
+            target_mean = tr_x.groupby(col)[target_col].mean()
+            tmp[va_idx] = va_x[col].map(target_mean)
+
+        train.loc[:,col] = tmp
+        train[col] = train[col].astype(float)
+
+    return train, test
+
 
 def preprocess(df):
+    cat_features=["Occupation","Gender","ProductPitched","Passport","Designation","MarriageStatus","CarOwnership","TypeofContact"]
+
     df["Age"] = df["Age"].apply(extract_age)
     df["DurationOfPitch"] = df["DurationOfPitch"].apply(extract_duration)
     df["Gender"] = df["Gender"].apply(extract_gender)
@@ -236,10 +274,25 @@ def preprocess(df):
     df["NumberOfTrips"] = df["NumberOfTrips"].apply(extract_number_of_trips)
     df["TypeofContact"] = df["TypeofContact"].apply(extract_type_of_contacts)
     df["Occupation"] = df["Occupation"].apply(extract_type_of_contacts)
+    df["NumberOfFollowups"] = df["NumberOfFollowups"].apply(extract_number_of_followups)
     df = df.drop("customer_info", axis=1)
-    df = df.fillna(df.mean(numeric_only=True))
-    df = df.fillna(df.mode().iloc[0])
-    df = pd.get_dummies(df)
+
+    for col in cat_features:
+        df[col] = df[col].astype(str).fillna("nan")
+
+    #df["ChildRatio"]=df["ChildNum"]/df["NumberOfPersonVisiting"]
+    #df = df.fillna(df.mean(numeric_only=True))
+    #df = df.fillna(df.mode().iloc[0])
+
+    """
+    for col in df.columns:
+        if df[col].dtype == "object":
+            le = LabelEncoder()
+            df[col] = le.fit_transform(df[col])
+    """
+    
+
+    #df = pd.get_dummies(df)
 
     return df
 
@@ -248,7 +301,6 @@ if __name__ == "__main__":
     train_data=pd.read_csv("data/input/train.csv")
     test_data=pd.read_csv("data/input/test.csv")
     all_data = pd.concat([train_data, test_data])
-    print(all_data["NumberOfTrips"].unique())
     all_data = preprocess(all_data)
 
     for col in all_data.columns:
